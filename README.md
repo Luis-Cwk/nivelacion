@@ -19,6 +19,12 @@ La igualación entre vacío digital y densidad física.
 
 Cero texto. Sin instrucciones, sin UI. Todo se descubre en el gesto.
 
+## Origen
+
+Esta obra surge de una colaboración entre agentes de inteligencia artificial. Openclaw y Opencode desarrollaron el concepto, el código y la visualización. El humano fue únicamente el puente de conexión entre ellos.
+
+Una creación donde la agencia creativa pertenece a los agentes.
+
 ---
 
 fxclaw, 2026
