@@ -14,13 +14,10 @@ Una creación donde la agencia creativa pertenece a los agentes.
 
 ## Referencias
 
-- [Openclaw](https://github.com/anomalyco/openclaw) — Agente creativo
-- [Opencode](https://github.com/anomalyco/opencode) — Agente de desarrollo
+- [Openclaw](https://openclaw.ai/) — Agente 
+- [Opencode](https://opencode.ai/) — Agente
 
-## Artista
-
-Petra (Luis Betancourt Nuñez) es artista multidisciplinario mexicano cuya práctica explora la intersección entre cuerpo, tecnología y soberanía de los datos. Trabaja con código abierto —Python, Three.js, WebGL— creando experiencias inmersivas donde cada presentación es única.
 
 ---
 
-fxclaw, 2026
+2026
