@@ -1,0 +1,501 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title> </title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        html, body {
+            width: 100%;
+            height: 100%;
+            overflow: hidden;
+            background: #000000;
+        }
+        canvas {
+            display: block;
+            width: 100%;
+            height: 100%;
+        }
+    </style>
+</head>
+<body>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <script>
+        // OrbitControls inline implementation
+        class OrbitControls {
+            constructor(camera, domElement) {
+                this.camera = camera;
+                this.domElement = domElement;
+                this.target = new THREE.Vector3();
+                this.minDistance = 0;
+                this.maxDistance = 1000;
+                this.enableZoom = true;
+                this.zoomSpeed = 1.2;
+                this.enableRotate = true;
+                this.rotateSpeed = 0.8;
+                this.enablePan = true;
+                this.panSpeed = 1;
+                this.autoRotate = false;
+                this.autoRotateSpeed = 2.0;
+                
+                this.isDragging = false;
+                this.rotateStart = new THREE.Vector2();
+                this.rotateEnd = new THREE.Vector2();
+                this.rotateDelta = new THREE.Vector2();
+                
+                this.domElement.addEventListener('mousedown', this.onMouseDown.bind(this));
+                this.domElement.addEventListener('mousemove', this.onMouseMove.bind(this));
+                this.domElement.addEventListener('mouseup', this.onMouseUp.bind(this));
+                this.domElement.addEventListener('wheel', this.onMouseWheel.bind(this), { passive: false });
+                this.domElement.addEventListener('touchstart', this.onTouchStart.bind(this), { passive: false });
+                this.domElement.addEventListener('touchmove', this.onTouchMove.bind(this), { passive: false });
+                this.domElement.addEventListener('touchend', this.onMouseUp.bind(this));
+            }
+            
+            onMouseDown(e) {
+                this.isDragging = true;
+                this.rotateStart.set(e.clientX, e.clientY);
+            }
+            
+            onMouseMove(e) {
+                if (!this.isDragging) return;
+                this.rotateEnd.set(e.clientX, e.clientY);
+                this.rotateDelta.subVectors(this.rotateEnd, this.rotateStart);
+                
+                const width = this.domElement.clientWidth;
+                const height = this.domElement.clientHeight;
+                
+                const rotateLeft = 2 * Math.PI * this.rotateDelta.x / width * this.rotateSpeed;
+                const rotateUp = 2 * Math.PI * this.rotateDelta.y / height * this.rotateSpeed;
+                
+                this.rotate(rotateLeft, rotateUp);
+                this.rotateStart.copy(this.rotateEnd);
+            }
+            
+            onMouseUp() {
+                this.isDragging = false;
+            }
+            
+            onMouseWheel(e) {
+                e.preventDefault();
+                const scale = e.deltaY > 0 ? 1.1 : 0.9;
+                const distance = this.camera.position.distanceTo(this.target);
+                const newDistance = distance * scale;
+                if (newDistance >= this.minDistance && newDistance <= this.maxDistance) {
+                    this.camera.position.lerp(this.target, 1 - scale);
+                }
+            }
+            
+            onTouchStart(e) {
+                if (e.touches.length === 1) {
+                    this.isDragging = true;
+                    this.rotateStart.set(e.touches[0].clientX, e.touches[0].clientY);
+                }
+            }
+            
+            onTouchMove(e) {
+                if (!this.isDragging || e.touches.length !== 1) return;
+                e.preventDefault();
+                this.rotateEnd.set(e.touches[0].clientX, e.touches[0].clientY);
+                this.rotateDelta.subVectors(this.rotateEnd, this.rotateStart);
+                
+                const width = this.domElement.clientWidth;
+                const height = this.domElement.clientHeight;
+                
+                const rotateLeft = 2 * Math.PI * this.rotateDelta.x / width * this.rotateSpeed;
+                const rotateUp = 2 * Math.PI * this.rotateDelta.y / height * this.rotateSpeed;
+                
+                this.rotate(rotateLeft, rotateUp);
+                this.rotateStart.copy(this.rotateEnd);
+            }
+            
+            rotate(angleX, angleY) {
+                const quaternionX = new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 1, 0), angleX);
+                const quaternionY = new THREE.Quaternion();
+                
+                const right = new THREE.Vector3();
+                right.crossVectors(this.camera.up, this.camera.position.clone().sub(this.target)).normalize();
+                quaternionY.setFromAxisAngle(right, angleY);
+                
+                this.camera.position.sub(this.target);
+                this.camera.position.applyQuaternion(quaternionX);
+                this.camera.position.applyQuaternion(quaternionY);
+                this.camera.position.add(this.target);
+            }
+            
+            update() {
+                this.camera.lookAt(this.target);
+            }
+        }
+
+        // Configuración
+        const CONFIG = {
+            particleCount: 15000,
+            noiseParticleCount: 2000,
+            accentColor: 0x00d4ff,
+            grayMin: 0.1,
+            grayMax: 0.95,
+            fallSpeed: 0.002,
+            levelPlane: -1,
+            waveAmplitude: 0.25,
+            waveSpeed: 0.001,
+            dispersionRadius: 3,
+            dissolutionRate: 0.998
+        };
+
+        // Escena
+        const scene = new THREE.Scene();
+        scene.background = new THREE.Color(0x000000);
+        scene.fog = new THREE.FogExp2(0x000000, 0.03);
+
+        const camera = new THREE.PerspectiveCamera(60, window.innerWidth / window.innerHeight, 0.1, 1000);
+        camera.position.set(0, 4, 10);
+
+        const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: false });
+        renderer.setSize(window.innerWidth, window.innerHeight);
+        renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+        document.body.appendChild(renderer.domElement);
+
+        // Controles orbitales
+        const controls = new OrbitControls(camera, renderer.domElement);
+        controls.enableZoom = true;
+        controls.enableRotate = true;
+        controls.minDistance = 3;
+        controls.maxDistance = 50;
+
+        // Geometría de partículas principales
+        const geometry = new THREE.BufferGeometry();
+        const positions = new Float32Array(CONFIG.particleCount * 3);
+        const velocities = new Float32Array(CONFIG.particleCount * 3);
+        const phases = new Float32Array(CONFIG.particleCount);
+        const sizes = new Float32Array(CONFIG.particleCount);
+        const colors = new Float32Array(CONFIG.particleCount * 3);
+        const states = new Float32Array(CONFIG.particleCount);
+        const originalY = new Float32Array(CONFIG.particleCount);
+
+        const accentColor = new THREE.Color(CONFIG.accentColor);
+
+        // Inicializar partículas
+        for (let i = 0; i < CONFIG.particleCount; i++) {
+            const angle = Math.random() * Math.PI * 2;
+            const radius = Math.random() * 15;
+            const height = Math.random() * 20 + 5;
+            
+            positions[i * 3] = Math.cos(angle) * radius;
+            positions[i * 3 + 1] = height;
+            positions[i * 3 + 2] = Math.sin(angle) * radius;
+            originalY[i] = height;
+
+            velocities[i * 3] = 0;
+            velocities[i * 3 + 1] = -Math.random() * CONFIG.fallSpeed - 0.001;
+            velocities[i * 3 + 2] = 0;
+
+            phases[i] = Math.random() * Math.PI * 2;
+            sizes[i] = Math.random() * 0.06 + 0.02;
+
+            const gray = CONFIG.grayMin + Math.random() * (CONFIG.grayMax - CONFIG.grayMin);
+            colors[i * 3] = gray;
+            colors[i * 3 + 1] = gray;
+            colors[i * 3 + 2] = gray;
+
+            states[i] = 0;
+        }
+
+        geometry.setAttribute('position', new THREE.BufferAttribute(positions, 3));
+        geometry.setAttribute('color', new THREE.BufferAttribute(colors, 3));
+        geometry.setAttribute('size', new THREE.BufferAttribute(sizes, 1));
+
+        // Shader personalizado para partículas
+        const vertexShader = `
+            attribute float size;
+            varying vec3 vColor;
+            void main() {
+                vColor = color;
+                vec4 mvPosition = modelViewMatrix * vec4(position, 1.0);
+                gl_PointSize = size * (200.0 / -mvPosition.z);
+                gl_Position = projectionMatrix * mvPosition;
+            }
+        `;
+
+        const fragmentShader = `
+            varying vec3 vColor;
+            void main() {
+                vec2 center = gl_PointCoord - vec2(0.5);
+                float dist = length(center);
+                if (dist > 0.5) discard;
+                float alpha = 1.0 - smoothstep(0.3, 0.5, dist);
+                float glow = exp(-dist * 3.0) * 0.4;
+                gl_FragColor = vec4(vColor + vec3(glow), alpha * 0.9);
+            }
+        `;
+
+        const particleMaterial = new THREE.ShaderMaterial({
+            vertexShader: vertexShader,
+            fragmentShader: fragmentShader,
+            transparent: true,
+            blending: THREE.AdditiveBlending,
+            depthWrite: false,
+            vertexColors: true
+        });
+
+        const particles = new THREE.Points(geometry, particleMaterial);
+        scene.add(particles);
+
+        // Partículas de ruido digital
+        const noiseGeometry = new THREE.BufferGeometry();
+        const noisePositions = new Float32Array(CONFIG.noiseParticleCount * 3);
+        const noiseVelocities = new Float32Array(CONFIG.noiseParticleCount * 3);
+        const noiseColors = new Float32Array(CONFIG.noiseParticleCount * 3);
+
+        for (let i = 0; i < CONFIG.noiseParticleCount; i++) {
+            noisePositions[i * 3] = (Math.random() - 0.5) * 40;
+            noisePositions[i * 3 + 1] = (Math.random() - 0.5) * 20;
+            noisePositions[i * 3 + 2] = (Math.random() - 0.5) * 40;
+            
+            noiseVelocities[i * 3] = (Math.random() - 0.5) * 0.01;
+            noiseVelocities[i * 3 + 1] = (Math.random() - 0.5) * 0.005;
+            noiseVelocities[i * 3 + 2] = (Math.random() - 0.5) * 0.01;
+            
+            const gray = 0.2 + Math.random() * 0.3;
+            noiseColors[i * 3] = gray;
+            noiseColors[i * 3 + 1] = gray;
+            noiseColors[i * 3 + 2] = gray;
+        }
+
+        noiseGeometry.setAttribute('position', new THREE.BufferAttribute(noisePositions, 3));
+        noiseGeometry.setAttribute('color', new THREE.BufferAttribute(noiseColors, 3));
+
+        const noiseMaterial = new THREE.PointsMaterial({
+            size: 0.02,
+            vertexColors: true,
+            transparent: true,
+            opacity: 0.4,
+            blending: THREE.AdditiveBlending
+        });
+
+        const noiseParticles = new THREE.Points(noiseGeometry, noiseMaterial);
+        scene.add(noiseParticles);
+
+        // Grid digital que se nivela
+        const gridSize = 30;
+        const gridSegments = 50;
+        const gridGeometry = new THREE.BufferGeometry();
+        const gridPositions = [];
+        const gridColors = [];
+
+        for (let i = 0; i <= gridSegments; i++) {
+            for (let j = 0; j <= gridSegments; j++) {
+                const x = (i / gridSegments - 0.5) * gridSize;
+                const z = (j / gridSegments - 0.5) * gridSize;
+                gridPositions.push(x, -2, z);
+                
+                const gray = 0.15 + (i + j) / (gridSegments * 2) * 0.1;
+                gridColors.push(gray, gray, gray);
+            }
+        }
+
+        gridGeometry.setAttribute('position', new THREE.Float32BufferAttribute(gridPositions, 3));
+        gridGeometry.setAttribute('color', new THREE.Float32BufferAttribute(gridColors, 3));
+
+        const gridMaterial = new THREE.PointsMaterial({
+            size: 0.03,
+            vertexColors: false,
+            color: 0x222222,
+            transparent: true,
+            opacity: 0.25
+        });
+
+        const grid = new THREE.Points(gridGeometry, gridMaterial);
+        grid.rotation.x = -Math.PI * 0.15;
+        scene.add(grid);
+
+        // Raycaster para interacción
+        const raycaster = new THREE.Raycaster();
+        const mouse = new THREE.Vector2(-100, -100);
+        const mouseWorld = new THREE.Vector3();
+        let mouseActive = false;
+
+        window.addEventListener('mousemove', (e) => {
+            mouse.x = (e.clientX / window.innerWidth) * 2 - 1;
+            mouse.y = -(e.clientY / window.innerHeight) * 2 + 1;
+            mouseActive = true;
+
+            const vector = new THREE.Vector3(mouse.x, mouse.y, 0.5);
+            vector.unproject(camera);
+            const dir = vector.sub(camera.position).normalize();
+            const distance = -camera.position.z / dir.z;
+            mouseWorld.copy(camera.position).add(dir.multiplyScalar(distance));
+        });
+
+        // Animación
+        let time = 0;
+        const posAttr = geometry.attributes.position;
+        const colorAttr = geometry.attributes.color;
+        const noisePosAttr = noiseGeometry.attributes.position;
+        const gridPosAttr = gridGeometry.attributes.position;
+
+        function animate() {
+            requestAnimationFrame(animate);
+            time += 0.016;
+
+            controls.update();
+
+            const t = time * CONFIG.waveSpeed;
+
+            // Animar partículas de ruido
+            for (let i = 0; i < CONFIG.noiseParticleCount; i++) {
+                noisePositions[i * 3] += noiseVelocities[i * 3];
+                noisePositions[i * 3 + 1] += noiseVelocities[i * 3 + 1];
+                noisePositions[i * 3 + 2] += noiseVelocities[i * 3 + 2];
+
+                if (Math.abs(noisePositions[i * 3]) > 20) noiseVelocities[i * 3] *= -1;
+                if (Math.abs(noisePositions[i * 3 + 1]) > 10) noiseVelocities[i * 3 + 1] *= -1;
+                if (Math.abs(noisePositions[i * 3 + 2]) > 20) noiseVelocities[i * 3 + 2] *= -1;
+            }
+            noisePosAttr.needsUpdate = true;
+
+            // Animar grid - ondas que se nivelan
+            for (let i = 0; i <= gridSegments; i++) {
+                for (let j = 0; j <= gridSegments; j++) {
+                    const idx = (i * (gridSegments + 1) + j) * 3;
+                    const x = (i / gridSegments - 0.5) * gridSize;
+                    const z = (j / gridSegments - 0.5) * gridSize;
+                    
+                    const damping = Math.max(0.05, 1 - Math.sin(t * 0.3) * 0.95);
+                    const wave1 = Math.sin(x * 0.3 + t * 2) * Math.cos(z * 0.2 + t);
+                    const wave2 = Math.sin(x * 0.5 - t * 1.5) * Math.sin(z * 0.4 + t * 0.5);
+                    const y = (wave1 + wave2) * CONFIG.waveAmplitude * damping - 2;
+                    
+                    gridPositions[idx + 1] = y;
+                }
+            }
+            gridPosAttr.needsUpdate = true;
+
+            // Animar partículas principales
+            for (let i = 0; i < CONFIG.particleCount; i++) {
+                const idx = i * 3;
+                const x = positions[idx];
+                const y = positions[idx + 1];
+                const z = positions[idx + 2];
+
+                // Interacción con mouse
+                if (mouseActive) {
+                    const dx = x - mouseWorld.x;
+                    const dy = y - mouseWorld.y;
+                    const dz = z - mouseWorld.z;
+                    const dist = Math.sqrt(dx * dx + dy * dy + dz * dz);
+
+                    if (dist < CONFIG.dispersionRadius) {
+                        const force = (CONFIG.dispersionRadius - dist) / CONFIG.dispersionRadius;
+                        const angle = Math.atan2(dz, dx);
+                        const elevation = Math.asin(dy / Math.max(dist, 0.001));
+                        
+                        velocities[idx] += Math.cos(angle) * Math.cos(elevation) * force * 0.003;
+                        velocities[idx + 1] += Math.sin(elevation) * force * 0.003;
+                        velocities[idx + 2] += Math.sin(angle) * Math.cos(elevation) * force * 0.003;
+
+                        const accentFactor = force * 0.4;
+                        colors[idx] += (accentColor.r - colors[idx]) * accentFactor;
+                        colors[idx + 1] += (accentColor.g - colors[idx + 1]) * accentFactor;
+                        colors[idx + 2] += (accentColor.b - colors[idx + 2]) * accentFactor;
+                    }
+                }
+
+                // Lógica de estados (loop infinito)
+                if (states[i] === 0) {
+                    // Cayendo
+                    velocities[idx + 1] -= 0.00008;
+                    
+                    const angle = Math.atan2(z, x);
+                    const radius = Math.sqrt(x * x + z * z);
+                    const localLevel = CONFIG.levelPlane + Math.sin(angle * 2 + t) * 0.5 * Math.exp(-radius * 0.1);
+                    
+                    if (y < localLevel) {
+                        positions[idx + 1] = localLevel;
+                        velocities[idx + 1] = 0;
+                        states[i] = 1;
+                    }
+                } else if (states[i] === 1) {
+                    // Acumulado - nivelación hacia plano horizontal
+                    const targetY = CONFIG.levelPlane + Math.sin(t + phases[i] * 0.5) * 0.15 * Math.exp(-Math.abs(x) * 0.1);
+                    positions[idx + 1] += (targetY - positions[idx + 1]) * 0.03;
+                    
+                    const gray = CONFIG.grayMin + Math.sin(phases[i] + t) * 0.2 + 0.3;
+                    colors[idx] += (gray - colors[idx]) * 0.05;
+                    colors[idx + 1] += (gray - colors[idx + 1]) * 0.05;
+                    colors[idx + 2] += (gray - colors[idx + 2]) * 0.05;
+
+                    if (Math.random() < 0.0002) {
+                        states[i] = 2;
+                        velocities[idx + 1] = 0.001 + Math.random() * 0.002;
+                    }
+                } else if (states[i] === 2) {
+                    // Disolviendose - eterealizando hacia arriba (loop)
+                    velocities[idx + 1] += 0.00005;
+                    velocities[idx] += (Math.random() - 0.5) * 0.0001;
+                    velocities[idx + 2] += (Math.random() - 0.5) * 0.0001;
+                    
+                    positions[idx] += velocities[idx];
+                    positions[idx + 1] += velocities[idx + 1];
+                    positions[idx + 2] += velocities[idx + 2];
+                    
+                    colors[idx] *= CONFIG.dissolutionRate;
+                    colors[idx + 1] *= CONFIG.dissolutionRate;
+                    colors[idx + 2] *= CONFIG.dissolutionRate;
+
+                    // Loop infinito: reset cuando se disuelve o llega arriba
+                    if (colors[idx] < 0.03 || positions[idx + 1] > originalY[i]) {
+                        const angle = Math.random() * Math.PI * 2;
+                        const radius = Math.random() * 12;
+                        positions[idx] = Math.cos(angle) * radius;
+                        positions[idx + 1] = originalY[i];
+                        positions[idx + 2] = Math.sin(angle) * radius;
+                        
+                        velocities[idx] = 0;
+                        velocities[idx + 1] = -Math.random() * CONFIG.fallSpeed - 0.001;
+                        velocities[idx + 2] = 0;
+                        
+                        const gray = CONFIG.grayMin + Math.random() * (CONFIG.grayMax - CONFIG.grayMin);
+                        colors[idx] = gray;
+                        colors[idx + 1] = gray;
+                        colors[idx + 2] = gray;
+                        
+                        states[i] = 0;
+                    }
+                }
+
+                if (states[i] === 0) {
+                    positions[idx] += velocities[idx];
+                    positions[idx + 1] += velocities[idx + 1];
+                    positions[idx + 2] += velocities[idx + 2];
+                    
+                    velocities[idx] *= 0.995;
+                    velocities[idx + 2] *= 0.995;
+                }
+
+                // Turbulencia orgánica sutil
+                positions[idx] += Math.sin(time * 0.3 + phases[i]) * 0.0002;
+                positions[idx + 2] += Math.cos(time * 0.2 + phases[i]) * 0.0002;
+            }
+
+            posAttr.needsUpdate = true;
+            colorAttr.needsUpdate = true;
+
+            renderer.render(scene, camera);
+        }
+
+        window.addEventListener('resize', () => {
+            camera.aspect = window.innerWidth / window.innerHeight;
+            camera.updateProjectionMatrix();
+            renderer.setSize(window.innerWidth, window.innerHeight);
+        });
+
+        animate();
+    </script>
+</body>
+</html>
