@@ -156,10 +156,51 @@
         const camera = new THREE.PerspectiveCamera(60, window.innerWidth / window.innerHeight, 0.1, 1000);
         camera.position.set(0, 4, 10);
 
-        const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: false });
+        const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: false, preserveDrawingBuffer: true });
         renderer.setSize(window.innerWidth, window.innerHeight);
         renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
         document.body.appendChild(renderer.domElement);
+
+        const CAPTURE_WIDTH = 3840;
+        const CAPTURE_HEIGHT = 2160;
+        let isCapturing = false;
+
+        function saveFrame4K() {
+            if (isCapturing) return;
+            isCapturing = true;
+
+            const previousSize = renderer.getSize(new THREE.Vector2());
+            const previousPixelRatio = renderer.getPixelRatio();
+            const previousAspect = camera.aspect;
+
+            renderer.setPixelRatio(1);
+            renderer.setSize(CAPTURE_WIDTH, CAPTURE_HEIGHT, false);
+            camera.aspect = CAPTURE_WIDTH / CAPTURE_HEIGHT;
+            camera.updateProjectionMatrix();
+
+            renderer.render(scene, camera);
+
+            const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
+            const link = document.createElement('a');
+            link.download = `nivelacion-4k-${timestamp}.png`;
+            link.href = renderer.domElement.toDataURL('image/png');
+            link.click();
+
+            renderer.setPixelRatio(previousPixelRatio);
+            renderer.setSize(previousSize.x, previousSize.y, false);
+            camera.aspect = previousAspect;
+            camera.updateProjectionMatrix();
+            renderer.render(scene, camera);
+
+            isCapturing = false;
+        }
+
+        window.addEventListener('keydown', (e) => {
+            if (e.key.toLowerCase() === 's') {
+                e.preventDefault();
+                saveFrame4K();
+            }
+        });
 
         // Controles orbitales
         const controls = new OrbitControls(camera, renderer.domElement);
@@ -196,7 +237,7 @@
             velocities[i * 3 + 2] = 0;
 
             phases[i] = Math.random() * Math.PI * 2;
-            sizes[i] = Math.random() * 0.06 + 0.02;
+            sizes[i] = Math.random() * 0.24 + 0.08;
 
             const gray = CONFIG.grayMin + Math.random() * (CONFIG.grayMax - CONFIG.grayMin);
             colors[i * 3] = gray;
@@ -217,7 +258,7 @@
             void main() {
                 vColor = color;
                 vec4 mvPosition = modelViewMatrix * vec4(position, 1.0);
-                gl_PointSize = size * (200.0 / -mvPosition.z);
+                gl_PointSize = size * (800.0 / -mvPosition.z);
                 gl_Position = projectionMatrix * mvPosition;
             }
         `;
@@ -271,10 +312,10 @@
         noiseGeometry.setAttribute('color', new THREE.BufferAttribute(noiseColors, 3));
 
         const noiseMaterial = new THREE.PointsMaterial({
-            size: 0.02,
+            size: 0.08,
             vertexColors: true,
             transparent: true,
-            opacity: 0.4,
+            opacity: 0.7,
             blending: THREE.AdditiveBlending
         });
 
@@ -303,11 +344,11 @@
         gridGeometry.setAttribute('color', new THREE.Float32BufferAttribute(gridColors, 3));
 
         const gridMaterial = new THREE.PointsMaterial({
-            size: 0.03,
+            size: 0.10,
             vertexColors: false,
-            color: 0x222222,
+            color: 0x333333,
             transparent: true,
-            opacity: 0.25
+            opacity: 0.40
         });
 
         const grid = new THREE.Points(gridGeometry, gridMaterial);
