@@ -21,9 +21,37 @@
             width: 100%;
             height: 100%;
         }
+        #version-switch {
+            position: fixed;
+            right: 20px;
+            bottom: 20px;
+            z-index: 200;
+            border: 1px solid rgba(255, 255, 255, 0.35);
+            background: rgba(10, 10, 10, 0.75);
+            color: rgba(255, 255, 255, 0.92);
+            font-family: "Courier New", monospace;
+            font-size: 11px;
+            letter-spacing: 1.8px;
+            text-transform: uppercase;
+            padding: 10px 14px;
+            cursor: pointer;
+            opacity: 0;
+            transform: translateY(8px);
+            pointer-events: none;
+            transition: opacity 0.2s ease, transform 0.2s ease, border-color 0.2s ease;
+        }
+        #version-switch.visible {
+            opacity: 1;
+            transform: translateY(0);
+            pointer-events: auto;
+        }
+        #version-switch:hover {
+            border-color: rgba(255, 255, 255, 0.7);
+        }
     </style>
 </head>
 <body>
+    <button id="version-switch" type="button" aria-label="Abrir version 3">Version 3</button>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
     <script>
         // OrbitControls inline implementation
@@ -200,6 +228,58 @@
                 e.preventDefault();
                 saveFrame4K();
             }
+        });
+
+        const versionSwitchButton = document.getElementById('version-switch');
+        const CORNER_PROXIMITY = 170;
+        let hideButtonTimeout;
+
+        function showVersionSwitchButton() {
+            clearTimeout(hideButtonTimeout);
+            versionSwitchButton.classList.add('visible');
+        }
+
+        function hideVersionSwitchButton(delay = 0) {
+            clearTimeout(hideButtonTimeout);
+            hideButtonTimeout = setTimeout(() => {
+                versionSwitchButton.classList.remove('visible');
+            }, delay);
+        }
+
+        function updateVersionSwitchVisibility(clientX, clientY) {
+            const nearBottom = window.innerHeight - clientY <= CORNER_PROXIMITY;
+            const nearRight = window.innerWidth - clientX <= CORNER_PROXIMITY;
+
+            if (nearBottom && nearRight) {
+                showVersionSwitchButton();
+                return;
+            }
+
+            hideVersionSwitchButton(120);
+        }
+
+        window.addEventListener('mousemove', (e) => {
+            updateVersionSwitchVisibility(e.clientX, e.clientY);
+        });
+
+        window.addEventListener('touchstart', (e) => {
+            if (e.touches.length > 0) {
+                updateVersionSwitchVisibility(e.touches[0].clientX, e.touches[0].clientY);
+            }
+        }, { passive: true });
+
+        window.addEventListener('touchmove', (e) => {
+            if (e.touches.length > 0) {
+                updateVersionSwitchVisibility(e.touches[0].clientX, e.touches[0].clientY);
+            }
+        }, { passive: true });
+
+        window.addEventListener('touchend', () => {
+            hideVersionSwitchButton(900);
+        });
+
+        versionSwitchButton.addEventListener('click', () => {
+            window.location.href = './bit_domains.html';
         });
 
         // Controles orbitales
